@@ -29,7 +29,8 @@ let posts = [
 final class PostsViewController: UIViewController {
 
     private let blueprintView = BlueprintView()
-
+    private var isLoading = false
+    
     override func loadView() {
         self.view = blueprintView
     }
@@ -43,10 +44,30 @@ final class PostsViewController: UIViewController {
         blueprintView.element = element
     }
 
+    private func startLoading() {
+        isLoading = true
+        update()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            self.finishLoading()
+        }
+    }
+    
+    private func finishLoading() {
+        isLoading = false
+        update()
+    }
+    
     var element: Element {
         let theme = FeedTheme(authorColor: .green)
-
-        return MainView(posts: posts)
+        
+        let pullToRefreshBehavior: ScrollView.PullToRefreshBehavior
+        if isLoading {
+            pullToRefreshBehavior = .refreshing
+        } else {
+            pullToRefreshBehavior = .enabled(action: { self.startLoading() })
+        }
+        
+        return MainView(posts: posts, pullToRefreshBehavior: pullToRefreshBehavior)
             .adaptedEnvironment(keyPath: \.feedTheme, value: theme)
     }
 }
@@ -69,6 +90,7 @@ struct FeedTheme {
 fileprivate struct MainView: ProxyElement {
     
     var posts: [Post]
+    var pullToRefreshBehavior: ScrollView.PullToRefreshBehavior
     
     var elementRepresentation: Element {
         EnvironmentReader { (environment) -> Element in
@@ -82,6 +104,7 @@ fileprivate struct MainView: ProxyElement {
                 $0.contentSize = .fittingHeight
                 $0.alwaysBounceVertical = true
                 $0.keyboardDismissMode = .onDrag
+                $0.pullToRefreshBehavior = self.pullToRefreshBehavior
             }
             .inset(by: environment.safeAreaInsets)
             .box(background: UIColor(white: 0.95, alpha: 1.0))
